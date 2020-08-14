@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>tileset collision demo - domgame.js</title>
+    </head>
+    <body>
+        <script src="domgame.js"></script>
+        <script src="domgamecollision.js"></script>
+        <script>
+            getcoords = function(elem) { return [parseFloat(elem.style.left) + parseFloat(elem.style.width) / 2, parseFloat(elem.style.bottom) + parseFloat(elem.style.height) / 2]; }
+
+			document.body.style.backgroundColor = "black";
+			DOMgame.unit_type = "vmin";
+			gamescreen = DOMgame.newRectPiece(document.body , 100, 100, 50, 50, "white");
+			gamescreen.style.bottom = "50%"; gamescreen.style.left = "50%";
+			gamescreen.style.transform = "translate(-50%, 50%)";
+            gamescreen.style.overflow = "hidden";
+
+            keysmap = {};
+            
+            var player;
+            var scrollscreen;
+
+            jumping = 0;
+            velocity_up = 0;
+
+            function draw_level(level) {
+                level_split = level.split("\n");
+                scrollscreen = document.createElement("DIV");
+                scrollscreen.style.bottom = "0"; scrollscreen.style.left = "0";
+                scrollscreen.style.width = (5 * level_split[1].length) + "vmin"; scrollscreen.style.height = "100vmin";
+                scrollscreen.style.backgroundColor = "grey";
+                scrollscreen.style.position = "absolute";
+                scrollscreen.id = "scrollscreen";
+                gamescreen.appendChild(scrollscreen);
+                for (r = 0; r < level_split.length; r++) {
+                    for (c = 0; c < level_split[r].length; c++) {
+                        if (level_split[r][c] == "@") {
+                            player = DOMgame.newRectPiece(document.getElementById("scrollscreen"), 5, 5, c * 5 + 2.5, 100 - (r * 5 + 2.5), "red");
+                            player.style.transform = "rotateY(0deg)";
+                        }
+                        else if (level_split[r][c] == "#") {
+                            block = DOMgame.newRectPiece(document.getElementById("scrollscreen"), 5, 5, c * 5 + 2.5, 100 - (r * 5 + 2.5), "white");
+                            block.setAttribute("class", "block");
+                            block.setAttribute("id", "brick_" + (c * 5 + 2.5).toString() + "_" + (100 - (r * 5 + 2.5)).toString());
+                        }
+                    }
+                }
+            }
+
+            function detect_sensing() {
+                out = {
+                    touching_block_top: false,
+                    touching_block_bottom: false,
+                    touching_block_left: false,
+                    touching_block_right: false
+                }
+                startx = Math.floor((getcoords(player)[0] - 2.5) / 5) - 1;
+                starty = Math.floor((getcoords(player)[1] - 2.5) / 5) - 1;
+                endx = Math.floor((getcoords(player)[0] + 2.5) / 5) + 1;
+                endy = Math.floor((getcoords(player)[1] + 2.5) / 5) + 1;
+                for (i = startx; i < endx; i++) {
+                    for (j = starty; j < endy; j++) {
+                        block = document.getElementById("brick_" + (i * 5 + 2.5).toString() + "_" + (j * 5 + 2.5).toString());
+                        if (document.body.contains(block)) {
+                            thecollision = player.directionalCollision(block);
+                            if (thecollision == "left") {
+                                out.touching_block_left = true;
+                                player.setXpos(parseFloat(block.style.left) - 2.5);
+                            }
+                            else if (thecollision == "right") {
+                                out.touching_block_right = true;
+                                player.setXpos(parseFloat(block.style.left) + 7.5);
+                            }
+                            else if (thecollision == "top") {
+                                out.touching_block_top = true;
+                                player.setYpos(parseFloat(block.style.bottom) + 7.5);
+                            }
+                            else if (thecollision == "bottom") {
+                                out.touching_block_bottom = true;
+                                player.setYpos(parseFloat(block.style.bottom) - 2.5);
+                            }
+                        }
+                    }
+                }
+                return out;
+            }
+
+            function main() {
+
+                onkeydown = onkeyup = function(e){
+                    e = e || event;
+                    keysmap[e.keyCode] = e.type == 'keydown';
+                }
+
+                sensing = detect_sensing();
+
+                if (keysmap[39]) {
+                    if (parseFloat(player.style.left) < parseFloat(document.getElementById("scrollscreen").style.width) - 5) {
+                        if (!(sensing.touching_block_left)) {
+                            player.changeXpos(0.2);
+                            player.style.transform = "rotateY(0deg)";
+                            if (parseFloat(player.style.left) - parseFloat(scrollscreen.style.left) > 50  && parseFloat(scrollscreen.style.left) > -parseFloat(scrollscreen.style.width) + 100) {
+                                scrollscreen.changeXpos(-0.2);
+                            }
+                        }
+                    }
+                }
+                            
+                if (keysmap[37]) {
+                    if (parseFloat(player.style.left) > 0) {
+                        if (!(sensing.touching_block_right)) {
+                            player.changeXpos(-0.2);
+                            player.style.transform = "rotateY(180deg)";
+                            if (parseFloat(scrollscreen.style.left) + parseFloat(player.style.left) < 50 && parseFloat(scrollscreen.style.left) < 0) {
+                                scrollscreen.changeXpos(0.2);
+                            }
+                        }
+                    }
+                }
+
+                if (keysmap[38] && sensing.touching_block_top && !(sensing.touching_block_bottom)) {
+                    velocity_up = 1;
+                    jumping = 1;
+                }
+
+                if (sensing.touching_block_bottom && sensing.touching_block_top != true) {
+                    velocity_up = -velocity_up;
+                }
+
+                if (sensing.touching_block_top == false) {
+                    velocity_up = velocity_up - 0.03;
+                } else { if ( jumping != 1 ) { velocity_up = 0; } else { jumping = 0; } }
+
+                player.changeYpos(velocity_up);
+
+                setTimeout(main, 1);
+            }
+
+            demolevel = "\
+                           \n\
+              ########     \n\
+                           \n\
+          ###              \n\
+       ##                  \n\
+                           \n\
+                           \n\
+    ##                     \n\
+                           \n\
+       #######             \n\
+                #          \n\
+                           \n\
+                           \n\
+                  ##       \n\
+                           \n\
+                           \n\
+            ####           \n\
+    ######                 \n\
+ @                         \n\
+###########################"
+
+            draw_level(demolevel);
+            main();
+        </script>
+    </body>
+</html>
